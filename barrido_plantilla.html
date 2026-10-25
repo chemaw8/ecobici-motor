@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ecobici · motor de rebalanceo · día hábil 06–19 h</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --tinta:#14213d; --gris:#6b7280; --linea:#e5e7eb; --falta:#d62828; --sobra:#1d4ed8; --ok:#2a9d8f; --acento:#f77f00; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--tinta); display:grid; grid-template-columns:460px 1fr; height:100vh; }
+  aside { overflow-y:auto; padding:16px 20px; border-right:1px solid var(--linea); background:#fafafa; }
+  h1 { font-size:18px; margin:0 0 2px; } .sub { color:var(--gris); font-size:12px; margin-bottom:8px; }
+  .tabs { display:flex; gap:6px; margin:8px 0 12px; } .tabs button { flex:1; padding:8px; border:1px solid var(--linea); background:#fff; border-radius:8px; cursor:pointer; font-weight:600; color:var(--tinta); }
+  .tabs button.on { background:var(--tinta); color:#fff; border-color:var(--tinta); }
+  .reloj { display:flex; align-items:center; gap:10px; margin:6px 0 4px; } .reloj b { font-size:24px; font-variant-numeric:tabular-nums; }
+  .reloj button, .btn { border:1px solid var(--tinta); background:var(--tinta); color:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-weight:600; }
+  .btn.sec { background:#fff; color:var(--tinta); }
+  input[type=range] { width:100%; accent-color:var(--acento); }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0; }
+  .kpi { background:#fff; border:1px solid var(--linea); border-radius:10px; padding:9px; } .kpi b { display:block; font-size:21px; } .kpi span { color:var(--gris); font-size:12px; }
+  .kpi.big { grid-column:span 2; border-left:4px solid var(--acento); }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--gris); margin:16px 0 6px; }
+  h3 { font-size:14px; margin:18px 0 4px; } h3 .paso { display:inline-block; background:var(--acento); color:#fff; border-radius:50%; width:20px; height:20px; text-align:center; line-height:20px; font-size:12px; margin-right:6px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; } td, th { padding:4px 3px; border-bottom:1px solid var(--linea); text-align:left; } th { color:var(--gris); font-weight:600; }
+  td.n { text-align:right; white-space:nowrap; } tr[data-c]:hover, tr[data-i]:hover { background:#fff3e0; cursor:pointer; }
+  .leyenda span { display:inline-flex; align-items:center; gap:4px; margin-right:10px; font-size:12px; } .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .nota { font-size:12px; color:var(--gris); } svg text { font-size:10px; fill:var(--gris); }
+  .barra { display:grid; grid-template-columns:150px 1fr 60px; align-items:center; gap:6px; font-size:12px; margin:4px 0; }
+  .barra div.b { height:16px; border-radius:4px; } .barra .v { text-align:right; font-weight:600; }
+  .caja { background:#fff; border:1px solid var(--linea); border-radius:10px; padding:10px; }
+  #mapa { height:100vh; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Motor de rebalanceo Ecobici</h1>
+  <div class="sub" id="sub"></div>
+  <div class="tabs"><button id="tOpt" class="on">Cómo se optimiza</button><button id="tDia">Recorrido del día</button></div>
+
+  <!-- ===================== VISTA: CÓMO SE OPTIMIZA ===================== -->
+  <div id="vOpt">
+    <h2>Resultado: viajes perdidos en un día hábil (06–19 h)</h2>
+    <div id="barras"></div>
+    <p class="nota" id="notaRes"></p>
+
+    <h3><span class="paso">1</span>Cada estación tiene su curva</h3>
+    <p class="nota">Para cada estación, la cadena de Markov calcula cuántos viajes perdería en el día según con cuántas bicis amanezca. Pocas bicis → retiros sin bici; demasiadas → devoluciones sin muelle. Da clic a una estación en el mapa.</p>
+    <div class="caja" id="curvaEst"></div>
+
+    <h3><span class="paso">2</span>Se reparten las bicis una por una</h3>
+    <p class="nota">Cada bici va a la estación donde rescata más viajes en ese momento. Como cada curva es convexa, este reparto es el óptimo. Mueve la flota o dale ▶ para verlo llenarse.</p>
+    <div class="reloj"><button id="playF">▶</button><b id="nFlota"></b><span class="nota">bicis repartidas</span></div>
+    <input type="range" id="sFlota" min="0" step="1">
+    <div style="display:flex; gap:6px; margin:6px 0"><button class="btn sec" id="irHoy">Flota de hoy</button><button class="btn sec" id="irSat">Hasta saturar</button></div>
+    <div class="kpis" id="kpisF"></div>
+    <div id="curvaFlota"></div>
+
+    <h3><span class="paso">3</span>Dónde cambia respecto a repartir parejo</h3>
+    <div class="leyenda"><span><i class="dot" style="background:#d62828"></i>más bicis que parejo</span><span><i class="dot" style="background:#1d4ed8"></i>menos que parejo</span></div>
+    <table id="tablaCambio"></table>
+  </div>
+
+  <!-- ===================== VISTA: RECORRIDO DEL DÍA ===================== -->
+  <div id="vDia" style="display:none">
+    <div class="reloj"><button id="play">▶</button><b id="hora"></b><span class="nota" id="nbloque"></span></div>
+    <input type="range" id="slider" min="0" value="0">
+    <div class="kpis" id="kpis"></div>
+    <div class="leyenda"><span><i class="dot" style="background:var(--falta)"></i>hay que llevar bicis</span><span><i class="dot" style="background:var(--sobra)"></i>sobran bicis</span><span><i class="dot" style="background:var(--ok)"></i>en su meta</span></div>
+    <p class="nota">Color = meta del bloque − bicis esperadas si solo se rebalanceó de noche. Tamaño = viajes que se pierden ahí en este bloque.</p>
+    <h2>Viajes perdidos por bloque (estimados por el modelo)</h2>
+    <div id="graf"></div>
+    <h2>Llevar bicis a</h2><table id="llevar"></table>
+    <h2>Sacar bicis de</h2><table id="sacar"></table>
+  </div>
+
+  <h2>Escenarios de día (mezcla)</h2><table id="esc"></table>
+  <h2>Cómo se calculó</h2>
+  <p class="nota" id="metodo"></p>
+</aside>
+<div id="mapa"></div>
+<script>
+const D = /*__DATOS__*/null;
+const fmt = n => Math.round(n).toLocaleString('es-MX');
+const T = D.totales, B = D.por_bloque, nb = D.bloques.length, ES = D.estaciones;
+const ORD = D.optimizacion.orden, PF = D.optimizacion.perdida_por_flota, NSAT = ORD.length;
+const S = T.sim, SP = T.sim_pareada_poisson_menos_mezcla, Dp = D.dispersion;
+const perdSim = s => s.retiros_perdidos + s.devoluciones_rechazadas;
+document.getElementById('sub').textContent = `${D.dias_habiles} días hábiles (${D.primer_dia} a ${D.ultimo_dia}) sin feriados (${D.feriados_excluidos.join(', ') || 'ninguno'}) · ${fmt(D.viajes_en_ventana)} viajes · bloques de ${D.paso_min} min · flota ${fmt(D.flota)} · ${ES.length} estaciones`;
+
+// ---------------- mapa
+const mapa = L.map('mapa', { preferCanvas:true });
+const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { attribution:'Mapa base © Esri, HERE, Garmin, © OpenStreetMap', maxZoom:16 }).addTo(mapa);
+L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom:16 }).addTo(mapa);
+mapa.fitBounds(ES.map(e => [e.lat, e.lon]), { padding:[20, 20] });
+const marcas = ES.map((e, i) => L.circleMarker([e.lat, e.lon], { radius:3, weight:1, fillOpacity:.65 }).addTo(mapa).on('click', () => clicEstacion(i)));
+// estación inicial: la que más viajes rescata entre las que tienen el óptimo a media capacidad (se ve la "U")
+const rescate = e => e.curva[e.x06_prop] - e.curva[e.x06];
+const interiores = ES.map((e, i) => i).filter(i => ES[i].x06 > 0.25 * ES[i].cap && ES[i].x06 < 0.75 * ES[i].cap);
+let vista = 'opt', sel = (interiores.length ? interiores : ES.map((e, i) => i)).reduce((b, i) => (rescate(ES[i]) > rescate(ES[b]) ? i : b));
+
+// ---------------- utilidades de gráficas
+function lineaSVG(series, opts) {
+  const W = opts.W || 400, H = opts.H || 160, p = 34, n = series[0].datos.length;
+  const ymax = opts.ymax ?? Math.max(...series.flatMap(s => s.datos)), ymin = opts.ymin ?? 0;
+  const X = i => p + i / (n - 1 || 1) * (W - p - 8), Y = v => H - 20 - (v - ymin) / (ymax - ymin || 1) * (H - 32);
+  let s = `<svg width="${W}" height="${H}">`;
+  s += `<line x1="${p}" y1="${H - 20}" x2="${W - 8}" y2="${H - 20}" stroke="#ccc"/><line x1="${p}" y1="8" x2="${p}" y2="${H - 20}" stroke="#ccc"/>`;
+  s += `<text x="2" y="12">${fmt(ymax)}</text><text x="2" y="${H - 22}">${fmt(ymin)}</text>`;
+  (opts.ejeX || []).forEach(([i, t]) => s += `<text x="${X(i) - 10}" y="${H - 6}">${t}</text>`);
+  series.forEach(se => s += `<path d="${se.datos.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('')}" stroke="${se.color}" fill="none" stroke-width="${se.ancho || 2}"/>`);
+  (opts.marcas || []).forEach(mk => {
+    s += `<line x1="${X(mk.i)}" x2="${X(mk.i)}" y1="8" y2="${H - 20}" stroke="${mk.color}" stroke-dasharray="${mk.punteada ? '4' : '0'}" stroke-width="1.5"/>`;
+    if (mk.punto != null) s += `<circle cx="${X(mk.i)}" cy="${Y(mk.punto)}" r="4" fill="${mk.color}"/>`;
+    if (mk.texto) {
+      const der = X(mk.i) > W - 80;  // cerca del borde derecho: texto a la izquierda de la línea
+      s += `<text x="${X(mk.i) + (der ? -3 : 3)}" y="${mk.ty || 20}" text-anchor="${der ? 'end' : 'start'}" style="fill:${mk.color}">${mk.texto}</text>`;
+    }
+  });
+  return s + '</svg>';
+}
+
+// ===================== VISTA OPTIMIZACIÓN =====================
+const xHoy = Math.min(D.flota, NSAT);
+function barras() {
+  const filas = [
+    ['Repartir parejo a las 06:00', T.perdida_proporcional, '#9ca3af'],
+    ['Plan nocturno del motor', T.perdida_optima_06, '#14213d'],
+    ['+ rebalanceo continuo (ideal)', T.perdida_dinamica_perfecta, '#2a9d8f'],
+  ];
+  const mx = Math.max(...filas.map(f => f[1]));
+  document.getElementById('barras').innerHTML = filas.map(([t, v, c]) => `<div class="barra"><span>${t}</span><div class="b" style="width:${100 * v / mx}%;background:${c}"></div><span class="v">${fmt(v)}</span></div>`).join('') +
+    `<div class="kpis"><div class="kpi big"><b>−${fmt(T.perdida_proporcional - T.perdida_optima_06)} viajes perdidos al día (−${Math.round(100 * (1 - T.perdida_optima_06 / T.perdida_proporcional))}%)</b><span>con las mismas ${fmt(D.flota)} bicis, solo acomodándolas distinto en la noche. Simulación re-jugando ${D.dias_habiles} días reales: ${fmt(perdSim(S.parejo))} → ${fmt(perdSim(S.plan_mezcla))} (−${fmt(perdSim(S.parejo) - perdSim(S.plan_mezcla))}); viajes servidos ${fmt(S.parejo.viajes_servidos)} → ${fmt(S.plan_mezcla.viajes_servidos)}.</span></div></div>`;
+  document.getElementById('notaRes').innerHTML = `El rebalanceo continuo es una cota: exigiría mover cientos o miles de bicis cada ${D.paso_min} min (ver "Recorrido del día"). Plan con Poisson puro: ${fmt(T.perdida_plan_poisson)}, prácticamente igual al de la mezcla (difieren ${fmt(T.bicis_que_cambian)} bicis). Todos los viajes perdidos son estimaciones del modelo.`;
+}
+
+function clicEstacion(i) {
+  sel = i;
+  if (vista === 'opt') { curvaEstacion(); pintaFlota(); }
+}
+
+function curvaEstacion() {
+  const e = ES[sel], f = e.curva, xmin = f.indexOf(Math.min(...f));
+  const xN = asignacion(+document.getElementById('sFlota').value)[sel];
+  const g = lineaSVG([{ datos:f, color:'#14213d' }], { W:400, H:170, ejeX:[[0, '0'], [f.length - 1, `${f.length - 1} bicis`]], marcas:[
+    { i:e.x06_prop, color:'#9ca3af', punto:f[e.x06_prop], texto:`parejo ${e.x06_prop}`, ty:20 },
+    { i:e.x06, color:'#f77f00', punto:f[e.x06], texto:`motor ${e.x06}`, ty:34 },
+    { i:xmin, color:'#2a9d8f', punto:f[xmin], punteada:true, texto:`mínimo ${xmin}`, ty:48 },
+  ] });
+  const marg = e.x06 + 1 < f.length ? f[e.x06] - f[e.x06 + 1] : 0;
+  document.getElementById('curvaEst').innerHTML = `<b>${e.nombre}</b> <span class="nota">(${e.cap} muelles)</span>${g}
+    <div class="nota">Amaneciendo con <b>${e.x06_prop}</b> (parejo) pierde <b>${f[e.x06_prop].toFixed(1)}</b> viajes al día; con <b>${e.x06}</b> (motor) pierde <b>${f[e.x06].toFixed(1)}</b>. Su mínimo es ${xmin} bicis (${f[xmin].toFixed(1)}), pero la flota no alcanza para darle el mínimo a todas. Una bici más aquí rescataría ${marg.toFixed(2)} viajes. Con el deslizador en ${fmt(+document.getElementById('sFlota').value)} bicis, le tocan <b>${xN}</b>.</div>`;
+}
+
+let cacheN = -1, cacheX = null;
+function asignacion(N) {
+  if (N === cacheN) return cacheX;
+  const x = new Array(ES.length).fill(0);
+  for (let j = 0; j < N; j++) x[ORD[j]]++;
+  cacheN = N; cacheX = x; return x;
+}
+
+const sF = document.getElementById('sFlota'); sF.max = NSAT; sF.value = xHoy;
+function pintaFlota() {
+  const N = +sF.value, x = asignacion(N);
+  const marg = N > 0 ? PF[N - 1] - PF[N] : PF[0] - PF[1];
+  const ultima = N > 0 ? ES[ORD[N - 1]].nombre : '—';
+  const llenas = x.filter((v, i) => v >= 0.8 * ES[i].cap).length, vacias = x.filter(v => v === 0).length;
+  document.getElementById('nFlota').textContent = fmt(N);
+  document.getElementById('kpisF').innerHTML = `
+    <div class="kpi"><b>${fmt(PF[N])}</b><span>viajes perdidos al día con ${fmt(N)} bicis bien repartidas</span></div>
+    <div class="kpi"><b>${marg.toFixed(2)}</b><span>viajes que rescata la bici número ${fmt(N)} (valor marginal)</span></div>
+    <div class="kpi"><b>${fmt(vacias)} / ${fmt(llenas)}</b><span>estaciones vacías / al 80% o más</span></div>
+    <div class="kpi"><span>La bici ${fmt(N)} fue a</span><b style="font-size:13px">${ultima}</b></div>`;
+  const paso = Math.max(1, Math.floor(PF.length / 300)), datos = PF.filter((_, i) => i % paso === 0);
+  document.getElementById('curvaFlota').innerHTML = lineaSVG([{ datos, color:'#14213d' }], { W:400, H:160,
+    ejeX:[[0, '0'], [datos.length - 1, fmt(NSAT)]],
+    marcas:[{ i:xHoy / paso, color:'#9ca3af', punteada:true, texto:'flota de hoy', ty:20 }, { i:N / paso, color:'#f77f00', punto:PF[N], texto:fmt(N), ty:34 }] }) +
+    '<div class="nota">Viajes perdidos al día contra bicis repartidas. La pendiente es el valor de una bici más; cuando se aplana, ya no conviene agregar.</div>';
+  if (vista !== 'opt') return;
+  marcas.forEach((mk, i) => {
+    const e = ES[i], v = x[i], llen = v / e.cap;
+    const color = v === 0 ? '#c4c4c4' : llen >= 0.7 ? '#d62828' : llen >= 0.3 ? '#f4a261' : '#1d4ed8';
+    mk.setStyle({ color: i === sel ? '#000' : color, fillColor:color, weight: i === sel ? 3 : 1 }).setRadius(2 + Math.sqrt(v) * 1.3)
+      .bindPopup(`<b>${e.nombre}</b><br>Con ${fmt(N)} bicis en el sistema le tocan <b>${v}</b> de ${e.cap}<br>Plan del motor (flota de hoy): ${e.x06} · parejo: ${e.x06_prop}`);
+  });
+  curvaEstacion();
+}
+
+function tablaCambio() {
+  const filas = ES.map((e, i) => ({ e, i, d:e.x06 - e.x06_prop, ah:e.curva[e.x06_prop] - e.curva[e.x06] }));
+  const top = [...filas].sort((a, b) => b.d - a.d).slice(0, 8).concat([...filas].sort((a, b) => a.d - b.d).slice(0, 8));
+  document.getElementById('tablaCambio').innerHTML = '<tr><th>Estación</th><th class="n">Parejo</th><th class="n">Motor</th><th class="n">Viajes/día</th></tr>' +
+    top.map(({ e, i, d, ah }) => `<tr data-i="${i}"><td><i class="dot" style="background:${d > 0 ? '#d62828' : '#1d4ed8'}"></i> ${e.nombre}</td><td class="n">${e.x06_prop}</td><td class="n">${e.x06}</td><td class="n" style="color:${ah >= 0 ? '#2a9d8f' : '#d62828'}">${ah >= 0 ? '+' : ''}${ah.toFixed(1)}</td></tr>`).join('') +
+    '<tr><td colspan="4" class="nota">Viajes/día = viajes perdidos que se evitan (+) o que se agregan (−) en esa estación. Algunas pierden un poco al ceder bicis; esas bicis rescatan mucho más en otra parte.</td></tr>';
+  document.querySelectorAll('#tablaCambio tr[data-i]').forEach(tr => tr.onclick = () => { const i = +tr.dataset.i; clicEstacion(i); mapa.setView(marcas[i].getLatLng(), 15); });
+}
+
+sF.oninput = pintaFlota;
+document.getElementById('irHoy').onclick = () => { sF.value = xHoy; pintaFlota(); };
+document.getElementById('irSat').onclick = () => { sF.value = NSAT; pintaFlota(); };
+let timerF = null;
+document.getElementById('playF').onclick = () => {
+  const b = document.getElementById('playF');
+  if (timerF) { clearInterval(timerF); timerF = null; b.textContent = '▶'; return; }
+  if (+sF.value >= NSAT) sF.value = 0;
+  b.textContent = '⏸';
+  timerF = setInterval(() => { sF.value = Math.min(NSAT, +sF.value + Math.ceil(NSAT / 120)); pintaFlota(); if (+sF.value >= NSAT) { clearInterval(timerF); timerF = null; b.textContent = '▶'; } }, 80);
+};
+
+// ===================== VISTA RECORRIDO DEL DÍA =====================
+function spark(e, k) {
+  const W = 230, H = 60, mx = Math.max(e.cap, 1);
+  const X = j => 4 + j / (nb - 1) * (W - 8), Y = v => H - 4 - v / mx * (H - 8);
+  const linea = a => a.map((v, j) => (j ? 'L' : 'M') + X(j).toFixed(1) + ',' + Y(v).toFixed(1)).join('');
+  return `<svg width="${W}" height="${H}" style="background:#f8f8f8"><path d="${linea(e.meta)}" stroke="#f77f00" fill="none" stroke-width="2"/><path d="${linea(e.E)}" stroke="#14213d" fill="none" stroke-width="1.5"/><line x1="${X(k)}" x2="${X(k)}" y1="0" y2="${H}" stroke="#999" stroke-dasharray="3"/></svg><br><small><span style="color:#14213d">━ esperado sin rebalanceo de día</span> · <span style="color:#f77f00">━ meta</span> · 0–${e.cap}</small>`;
+}
+let k = 0;
+const slider = document.getElementById('slider'); slider.max = nb - 1;
+document.getElementById('graf').innerHTML = lineaSVG([
+  { datos:B.perdida_proporcional, color:'#9ca3af' }, { datos:B.perdida_optima_06, color:'#14213d' }, { datos:B.perdida_dinamica, color:'#2a9d8f' }],
+  { W:400, H:150, ejeX:[[0, '06:00'], [Math.floor(nb / 2), D.bloques[Math.floor(nb / 2)].slice(0, 5)], [nb - 1, D.bloques[nb - 1].slice(0, 5)]], marcas:[{ i:0, color:'#f77f00', punteada:true }] }).replace('<svg', '<svg id="svgDia"') +
+  '<div class="leyenda"><span><i class="dot" style="background:#9ca3af"></i>parejo</span><span><i class="dot" style="background:#14213d"></i>plan nocturno</span><span><i class="dot" style="background:#2a9d8f"></i>rebalanceo continuo</span></div>';
+function pintaDia() {
+  document.getElementById('hora').textContent = D.bloques[k];
+  document.getElementById('nbloque').textContent = `bloque ${k + 1} de ${nb}`;
+  const cur = document.querySelector('#svgDia line[stroke-dasharray="4"]');
+  if (cur) { const x = 34 + k / (nb - 1) * (400 - 34 - 8); cur.setAttribute('x1', x); cur.setAttribute('x2', x); }
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi big"><b>${fmt(B.bicis_a_mover[k])} bicis por llevar</b><span>para pasar del estado esperado a la meta del bloque (solo con rebalanceo nocturno)</span></div>
+    <div class="kpi"><b>${fmt(B.perdida_optima_06[k])}</b><span>viajes perdidos en el bloque (plan nocturno)</span></div>
+    <div class="kpi"><b>${fmt(B.perdida_dinamica[k])}</b><span>con rebalanceo continuo a la meta</span></div>
+    <div class="kpi"><b>${fmt(B.vacias[k])} / ${fmt(B.llenas[k])}</b><span>estaciones con P &gt; 50% de estar vacías / llenas</span></div>
+    <div class="kpi"><b>${fmt(B.retiros[k])} / ${fmt(B.devoluciones[k])}</b><span>retiros / devoluciones esperados</span></div>`;
+  const filas = ES.map((e, i) => ({ e, i, g:e.meta[k] - e.E[k] }));
+  filas.forEach(({ e, i, g }) => {
+    const color = g >= 2 ? '#d62828' : g <= -2 ? '#1d4ed8' : '#2a9d8f';
+    marcas[i].setStyle({ color, fillColor:color, weight:1 }).setRadius(2.5 + Math.sqrt(e.perd[k]) * 4)
+      .bindPopup(`<b>${e.nombre}</b><br>${D.bloques[k]}<br>Esperadas: <b>${e.E[k]}</b> · meta: <b>${e.meta[k]}</b> de ${e.cap}<br>P(vacía) ${Math.round(e.pe[k] * 100)}% · P(llena) ${Math.round(e.pf[k] * 100)}%<br>Retiros/h ${e.mu[k]} · devoluciones/h ${e.lam[k]}<br>Amanecer con ${e.x06} (parejo: ${e.x06_prop})<br>${spark(e, k)}`);
+  });
+  const tabla = (lista, signo) => '<tr><th>Estación</th><th class="n">Esperadas</th><th class="n">Meta</th><th class="n">' + (signo > 0 ? 'Llevar' : 'Sacar') + '</th></tr>' +
+    lista.map(({ e, g }) => `<tr data-c="${e.codigo}"><td>${e.nombre}</td><td class="n">${e.E[k]}</td><td class="n">${e.meta[k]}</td><td class="n">${Math.round(Math.abs(g))}</td></tr>`).join('');
+  document.getElementById('llevar').innerHTML = tabla(filas.filter(f => f.g >= 2).sort((a, b) => b.g - a.g).slice(0, 10), 1);
+  document.getElementById('sacar').innerHTML = tabla(filas.filter(f => f.g <= -2).sort((a, b) => a.g - b.g).slice(0, 10), -1);
+  document.querySelectorAll('#vDia tr[data-c]').forEach(tr => tr.onclick = () => { const i = ES.findIndex(e => e.codigo === tr.dataset.c); mapa.setView(marcas[i].getLatLng(), 16); marcas[i].openPopup(); });
+}
+slider.oninput = () => { k = +slider.value; pintaDia(); };
+let timer = null;
+document.getElementById('play').onclick = () => {
+  const b = document.getElementById('play');
+  if (timer) { clearInterval(timer); timer = null; b.textContent = '▶'; return; }
+  b.textContent = '⏸';
+  timer = setInterval(() => { k = (k + 1) % nb; slider.value = k; pintaDia(); }, 900);
+};
+
+// ===================== comunes =====================
+document.getElementById('metodo').innerHTML = `Tasas λ (devoluciones) y μ (retiros) por estación y bloque de ${D.paso_min} min, promedio de ${D.dias_habiles} días hábiles. <b>Demanda</b>: Poisson con tasa aleatoria por día (mezcla de ${D.escenarios.length} escenarios de días reales). <b>Cadena de Markov</b> exacta por estación y escenario → curva de viajes perdidos según bicis al amanecer. <b>Reparto</b>: asignación marginal (bici por bici al mayor valor), óptima porque las curvas son convexas. <b>Variabilidad</b> (varianza/media de retiros diarios, mediana): datos ${Dp.observada} · Poisson ${Dp.poisson} · mezcla ${Dp.mezcla_escenarios}. <b>Validación</b>: simulación de red re-jugando días reales (${S.parejo.perdidos_por_replica.length} réplicas); plan Poisson ${fmt(perdSim(S.plan_poisson))} vs mezcla ${fmt(perdSim(S.plan_mezcla))}, diferencia pareada ${SP.media} ± ${SP.ic95}. Los viajes perdidos no se observan en los datos: son estimaciones del modelo.`;
+document.getElementById('esc').innerHTML = '<tr><th class="n">Peso</th><th class="n">Días</th><th class="n">Nivel</th><th class="n">Mañana</th><th class="n">Tarde</th><th>Jul/Ago/Sep</th><th class="n">Lunes</th></tr>' +
+  D.escenarios.map(e => `<tr><td class="n">${Math.round(e.peso * 100)}%</td><td class="n">${e.dias}</td><td class="n">${e.factor}</td><td class="n">${e.manana}</td><td class="n">${e.tarde}</td><td>${e.julio}/${e.agosto}/${e.septiembre}</td><td class="n">${e.lunes}</td></tr>`).join('');
+
+const tOpt = document.getElementById('tOpt'), tDia = document.getElementById('tDia');
+tOpt.onclick = () => { vista = 'opt'; tOpt.classList.add('on'); tDia.classList.remove('on'); document.getElementById('vOpt').style.display = ''; document.getElementById('vDia').style.display = 'none'; pintaFlota(); };
+tDia.onclick = () => { vista = 'dia'; tDia.classList.add('on'); tOpt.classList.remove('on'); document.getElementById('vDia').style.display = ''; document.getElementById('vOpt').style.display = 'none'; pintaDia(); };
+barras(); tablaCambio(); pintaFlota();
+</script>
+</body>
+</html>

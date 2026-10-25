@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor de rebalanceo Ecobici · CTMC</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --tinta:#14213d; --gris:#6b7280; --linea:#e5e7eb; --falta:#d62828; --sobra:#1d4ed8; --ok:#2a9d8f; --acento:#f77f00; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--tinta); display:grid; grid-template-columns:420px 1fr; height:100vh; }
+  aside { overflow-y:auto; padding:18px 20px; border-right:1px solid var(--linea); background:#fafafa; }
+  h1 { font-size:18px; margin:0 0 2px; } .sub { color:var(--gris); font-size:12px; margin-bottom:12px; }
+  .tabs { display:flex; gap:6px; margin:10px 0 14px; } .tabs button { flex:1; padding:8px; border:1px solid var(--linea); background:#fff; border-radius:8px; cursor:pointer; font-weight:600; color:var(--tinta); }
+  .tabs button.on { background:var(--tinta); color:#fff; border-color:var(--tinta); }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+  .kpi { background:#fff; border:1px solid var(--linea); border-radius:10px; padding:10px; } .kpi b { display:block; font-size:22px; } .kpi span { color:var(--gris); font-size:12px; }
+  .kpi.big { grid-column:span 2; border-left:4px solid var(--acento); }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--gris); margin:16px 0 6px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; } td, th { padding:4px 3px; border-bottom:1px solid var(--linea); text-align:left; vertical-align:top; } th { color:var(--gris); font-weight:600; }
+  td.n { text-align:right; white-space:nowrap; } tr:hover { background:#fff3e0; cursor:pointer; }
+  .leyenda span { display:inline-flex; align-items:center; gap:4px; margin-right:10px; font-size:12px; } .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .nota { font-size:12px; color:var(--gris); } svg text { font-size:10px; fill:var(--gris); }
+  #mapa { height:100vh; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Motor de rebalanceo Ecobici</h1>
+  <div class="sub" id="sub"></div>
+  <div class="tabs"><button id="tA" class="on">Ahora: qué mover</button><button id="tB">Plan nocturno</button></div>
+  <div id="panel"></div>
+</aside>
+<div id="mapa"></div>
+<script>
+const D = /*__DATOS__*/null;
+const fmt = n => Math.round(n).toLocaleString('es-MX');
+const mapa = L.map('mapa', { preferCanvas:true }).setView([19.405, -99.17], 13);
+const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { attribution:'Mapa base © Esri, HERE, Garmin, © OpenStreetMap', maxZoom:16 }).addTo(mapa);
+L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom:16 }).addTo(mapa);
+let capa = L.layerGroup().addTo(mapa);
+const marcas = {};
+document.getElementById('sub').textContent = `Generado ${D.generado} · ${D.estaciones} estaciones activas · ${fmt(D.viajes_usados)} viajes de ${D.fuente_viajes}`;
+
+function curvaSVG(puntos, xk, yk, marca, etX, etY) {
+  const W = 370, H = 150, p = 30;
+  const xs = puntos.map(d => d[xk]), ys = puntos.map(d => d[yk]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const X = v => p + (v - x0) / (x1 - x0 || 1) * (W - p - 8), Y = v => H - p + 8 - v / (y1 || 1) * (H - p - 8);
+  const d = puntos.map((q, i) => (i ? 'L' : 'M') + X(q[xk]).toFixed(1) + ',' + Y(q[yk]).toFixed(1)).join('');
+  let s = `<svg width="${W}" height="${H}"><path d="${d}" fill="none" stroke="#14213d" stroke-width="2"/>`;
+  s += `<line x1="${p}" y1="${H - p + 8}" x2="${W}" y2="${H - p + 8}" stroke="#ccc"/>`;
+  s += `<text x="${p}" y="${H - 6}">${fmt(x0)}</text><text x="${W - 40}" y="${H - 6}">${fmt(x1)}</text><text x="${W / 2 - 30}" y="${H - 6}">${etX}</text>`;
+  s += `<text x="2" y="12">${etY} (máx ${fmt(y1)})</text>`;
+  if (marca != null) { s += `<line x1="${X(marca)}" y1="14" x2="${X(marca)}" y2="${H - p + 8}" stroke="var(--acento)" stroke-dasharray="4"/><text x="${X(marca) + 3}" y="26" style="fill:#f77f00">hoy</text>`; }
+  return s + '</svg>';
+}
+
+function vistaAhora() {
+  const A = D.ahora; capa.clearLayers();
+  const ahorro = A.perdida_sin_plan - A.perdida_con_plan, simAh = (A.sim_sin.retiros_perdidos + A.sim_sin.devoluciones_rechazadas) - (A.sim_con.retiros_perdidos + A.sim_con.devoluciones_rechazadas);
+  const movidas = A.movimientos.reduce((s, r) => s + r.bicis, 0);
+  document.getElementById('panel').innerHTML = `
+    <div class="kpis">
+      <div class="kpi big"><b>${fmt(ahorro)} viajes rescatados</b><span>en ${A.ventana} (${A.tipo_dia}) moviendo ${fmt(movidas)} bicis en ${A.movimientos.length} órdenes. Simulación de red: ${fmt(simAh)} (IC95 ≈ ±${fmt(A.sim_con.ic95_perdidos)})</span></div>
+      <div class="kpi"><b>${fmt(A.perdida_sin_plan)}</b><span>viajes perdidos esperados sin hacer nada</span></div>
+      <div class="kpi"><b>${fmt(A.perdida_con_plan)}</b><span>con el plan (presupuesto ${A.presupuesto} bicis)</span></div>
+      <div class="kpi"><b>${fmt(A.bicis_disponibles)}</b><span>bicis disponibles ahora (GBFS en vivo)</span></div>
+      <div class="kpi"><b>${fmt(A.demanda_esperada)}</b><span>retiros + devoluciones esperados en la ventana</span></div>
+    </div>
+    <div class="leyenda"><span><i class="dot" style="background:var(--falta)"></i>faltan bicis</span><span><i class="dot" style="background:var(--sobra)"></i>puede ceder bicis</span><span><i class="dot" style="background:var(--ok)"></i>en su meta</span></div>
+    <p class="nota">Tamaño del círculo = viajes que se perderán ahí si no se actúa. Líneas naranjas = movimiento de camión (origen → destino).</p>
+    <h2>¿Cuánto rinde cada bici movida?</h2>
+    ${curvaSVG(A.sensibilidad, 'movidas', 'perdida_esperada', A.presupuesto, 'bicis movidas', 'viajes perdidos')}
+    <h2>Órdenes de movimiento (mayor impacto primero)</h2>
+    <table><tr><th>De</th><th>A</th><th class="n">Bicis</th><th class="n">km</th></tr>
+    ${A.movimientos.slice(0, 40).map((r, i) => `<tr data-i="${i}"><td>${r.nombre_origen}</td><td>${r.nombre_destino}</td><td class="n">${r.bicis}</td><td class="n">${r.km}</td></tr>`).join('')}</table>
+    <h2>Validación por simulación de red (${A.sim_sin && 'promedio de réplicas'})</h2>
+    <table><tr><th></th><th class="n">Retiros perdidos</th><th class="n">Devol. rechazadas</th><th class="n">Viajes servidos</th></tr>
+    <tr><td>Sin plan</td><td class="n">${fmt(A.sim_sin.retiros_perdidos)}</td><td class="n">${fmt(A.sim_sin.devoluciones_rechazadas)}</td><td class="n">${fmt(A.sim_sin.viajes_servidos)}</td></tr>
+    <tr><td>Con plan</td><td class="n">${fmt(A.sim_con.retiros_perdidos)}</td><td class="n">${fmt(A.sim_con.devoluciones_rechazadas)}</td><td class="n">${fmt(A.sim_con.viajes_servidos)}</td></tr></table>
+    <p class="nota">Si se pudieran mover sin límite las ${fmt(A.bicis_disponibles)} bicis de hoy: ${fmt(A.perdida_meta)} viajes perdidos. Ideal con flota ilimitada: ${fmt(A.perdida_ideal)} (requiere ${fmt(A.bicis_para_ideal)} bicis bien colocadas).</p>
+    <p class="nota">Reglas del plan: cada parada mueve mínimo 5 bicis, cada parada cuesta el equivalente a 1 viaje perdido (tiempo de camión) y se prefieren pares cercanos (≤5 km).</p>`;
+  const col = { falta:'#d62828', sobra:'#1d4ed8', ok:'#2a9d8f' };
+  A.estaciones.forEach(e => {
+    const c = L.circleMarker([e.lat, e.lon], { radius: 2.5 + Math.sqrt(e.perdida_actual) * 2, color: col[e.estado], weight:1, fillOpacity:.55 })
+      .bindPopup(`<b>${e.nombre}</b><br>Bicis ahora: <b>${e.bicis}</b> / ${e.cap} muelles útiles<br>Meta con la flota de hoy: <b>${e.objetivo}</b> · ideal sin límite: ${e.ideal}<br>Después del plan: ${e.despues}<br>Viajes que se pierden (próx. 4 h): ${e.perdida_actual} → ${e.perdida_despues}<br><small>retiros sin bici ${e.retiros_perdidos} · devoluciones sin muelle ${e.devol_rechazadas}</small>`);
+    capa.addLayer(c); marcas[e.codigo] = c;
+  });
+  A.movimientos.forEach(r => {
+    capa.addLayer(L.polyline([[r.lat_o, r.lon_o], [r.lat_d, r.lon_d]], { color:'#f77f00', weight: 1 + Math.sqrt(r.bicis), opacity:.85 })
+      .bindPopup(`<b>${r.bicis} bicis</b><br>De: ${r.nombre_origen}<br>A: ${r.nombre_destino}<br>${r.km} km · rescata ~${r.ahorro} viajes`));
+    capa.addLayer(L.circleMarker([r.lat_d, r.lon_d], { radius:3, color:'#f77f00', fillOpacity:1 }));
+  });
+  document.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { const r = A.movimientos[+tr.dataset.i]; mapa.fitBounds([[r.lat_o, r.lon_o], [r.lat_d, r.lon_d]], { maxZoom:16, padding:[80, 80] }); });
+}
+
+function vistaNoche() {
+  const B = D.plan_nocturno; capa.clearLayers();
+  const sp = B.sim_proporcional, so = B.sim_optima;
+  const pp = sp.retiros_perdidos + sp.devoluciones_rechazadas, po = so.retiros_perdidos + so.devoluciones_rechazadas;
+  document.getElementById('panel').innerHTML = `
+    <div class="kpis">
+      <div class="kpi big"><b>${fmt(B.perdida_proporcional - B.perdida_optima)} viajes más</b><span>en ${B.ventana} con la MISMA flota (${fmt(B.flota)} bicis) solo por acomodarla con el motor. Simulación de red: ${fmt(pp - po)} (IC95 ≈ ±${fmt(so.ic95_perdidos)})</span></div>
+      <div class="kpi"><b>${fmt(B.perdida_proporcional)}</b><span>perdidos repartiendo parejo (mismo % de llenado)</span></div>
+      <div class="kpi"><b>${fmt(B.perdida_optima)}</b><span>perdidos con la distribución óptima</span></div>
+      <div class="kpi"><b>${fmt(B.flota_saturacion)}</b><span>bicis a partir de las cuales ya no conviene agregar</span></div>
+      <div class="kpi"><b>${fmt(B.demanda_esperada)}</b><span>retiros + devoluciones esperados 06–12 h</span></div>
+    </div>
+    <div class="leyenda"><span><i class="dot" style="background:#d62828"></i>llenar (≥70%)</span><span><i class="dot" style="background:#f4a261"></i>media</span><span><i class="dot" style="background:#1d4ed8"></i>dejar casi vacía (≤30%)</span></div>
+    <p class="nota">Color = qué tan llena debe amanecer la estación. Tamaño = retiros esperados en la mañana.</p>
+    <h2>¿Cuántas bicis necesita el sistema?</h2>
+    ${curvaSVG(B.curva_flota, 'flota', 'perdida', B.flota, 'bicis en estaciones a las 06:00', 'viajes perdidos')}
+    <h2>Estaciones a llenar al máximo</h2>
+    <table><tr><th>Estación</th><th class="n">Objetivo</th><th class="n">Parejo</th><th class="n">Retiros 6-12</th></tr>
+    ${[...B.estaciones].sort((a, b) => (b.optimo - b.proporcional) - (a.optimo - a.proporcional)).slice(0, 15).map(e => `<tr data-c="${e.codigo}"><td>${e.nombre}</td><td class="n">${e.optimo}/${e.cap}</td><td class="n">${e.proporcional}</td><td class="n">${e.retiros_6_12}</td></tr>`).join('')}</table>
+    <h2>Estaciones a dejar con espacio</h2>
+    <table><tr><th>Estación</th><th class="n">Objetivo</th><th class="n">Parejo</th><th class="n">Devol. 6-12</th></tr>
+    ${[...B.estaciones].sort((a, b) => (a.optimo - a.proporcional) - (b.optimo - b.proporcional)).slice(0, 15).map(e => `<tr data-c="${e.codigo}"><td>${e.nombre}</td><td class="n">${e.optimo}/${e.cap}</td><td class="n">${e.proporcional}</td><td class="n">${e.devol_6_12}</td></tr>`).join('')}</table>`;
+  B.estaciones.forEach(e => {
+    const f = e.llenado_pct, color = f >= 70 ? '#d62828' : f <= 30 ? '#1d4ed8' : '#f4a261';
+    const c = L.circleMarker([e.lat, e.lon], { radius: 2.5 + Math.sqrt(e.retiros_6_12) * 0.8, color, weight:1, fillOpacity:.6 })
+      .bindPopup(`<b>${e.nombre}</b><br>Amanecer con <b>${e.optimo}</b> de ${e.cap} (${f}%)<br>Repartiendo parejo serían ${e.proporcional}<br>Retiros esperados 06–12: ${e.retiros_6_12} · devoluciones: ${e.devol_6_12}`);
+    capa.addLayer(c); marcas[e.codigo] = c;
+  });
+  document.querySelectorAll('tr[data-c]').forEach(tr => tr.onclick = () => { const mk = marcas[tr.dataset.c]; mapa.setView(mk.getLatLng(), 16); mk.openPopup(); });
+}
+
+const tA = document.getElementById('tA'), tB = document.getElementById('tB');
+mapa.fitBounds(D.ahora.estaciones.map(e => [e.lat, e.lon]), { padding:[20, 20] });
+tA.onclick = () => { tA.classList.add('on'); tB.classList.remove('on'); vistaAhora(); };
+tB.onclick = () => { tB.classList.add('on'); tA.classList.remove('on'); vistaNoche(); };
+vistaAhora();
+</script>
+</body>
+</html>

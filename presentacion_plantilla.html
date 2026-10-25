@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo reparte el motor · Ecobici</title>
+<style>
+  :root {
+    --niebla:#F3F5F4; --asfalto:#16263A; --gris:#6B7A86; --linea:#DDE2E5; --suave:#A9B2B8;
+    --sale:#D1495B; --llega:#2F7F9E; --motor:#E39B2D; --blanco:#FFFFFF;
+    --display:"Inter Display","Inter",system-ui,sans-serif; --texto:"Inter",system-ui,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; background:#0f1a28; overflow:hidden; }
+  body { font-family:var(--texto); color:var(--asfalto); font-feature-settings:"tnum" 1, "cv11" 1; }
+  #escenario { position:absolute; width:1600px; height:900px; transform-origin:0 0; background:var(--niebla); overflow:hidden; }
+  .lamina { position:absolute; inset:0; padding:70px 96px 90px; opacity:0; visibility:hidden; transition:opacity .35s ease; }
+  .lamina.activa { opacity:1; visibility:visible; }
+  .acto { font:600 15px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase; color:var(--gris); margin-bottom:18px; display:flex; gap:12px; align-items:center; }
+  .acto::before { content:""; width:28px; height:3px; background:var(--motor); }
+  h1, h2 { font-family:var(--display); font-weight:800; letter-spacing:-.03em; line-height:1.02; }
+  h1 { font-size:86px; max-width:1180px; }
+  h2 { font-size:52px; max-width:1300px; }
+  .lead { font-size:24px; line-height:1.45; color:#2c3e50; max-width:620px; }
+  .lead b { color:var(--asfalto); }
+  .dos { display:grid; grid-template-columns:560px 1fr; gap:56px; margin-top:28px; height:536px; }
+  .col { display:flex; flex-direction:column; gap:22px; }
+  .cifra { font-family:var(--display); font-weight:800; font-size:92px; letter-spacing:-.04em; line-height:.95; }
+  .cifra small { font-size:.32em; letter-spacing:0; font-weight:600; color:var(--gris); }
+  .etq { font-size:19px; color:var(--gris); line-height:1.4; }
+  .sale { color:var(--sale); } .llega { color:var(--llega); } .motor { color:var(--motor); }
+  .fuente { position:absolute; left:96px; bottom:34px; right:260px; font-size:14px; color:var(--gris); line-height:1.4; }
+  .lienzo { width:100%; height:100%; display:block; }
+  .marco { position:relative; background:var(--blanco); border-radius:18px; box-shadow:0 1px 0 var(--linea), 0 12px 40px rgba(22,38,58,.06); overflow:hidden; }
+  .botones { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn { font:600 18px var(--texto); padding:11px 20px; border-radius:999px; border:2px solid var(--asfalto); background:transparent; color:var(--asfalto); cursor:pointer; }
+  .btn.on, .btn:hover { background:var(--asfalto); color:var(--blanco); }
+  .btn:focus-visible, button:focus-visible { outline:3px solid var(--motor); outline-offset:3px; }
+  .leyenda { display:flex; gap:22px; font-size:17px; color:var(--gris); align-items:center; flex-wrap:wrap; }
+  .punto { display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:-1px; margin-right:7px; }
+  .degradado { display:inline-block; width:150px; height:12px; border-radius:6px; background:linear-gradient(90deg,var(--llega),#B9A6A0,var(--sale)); vertical-align:-1px; margin:0 8px; }
+  .tarjeta { background:var(--blanco); border-radius:16px; padding:22px 26px; box-shadow:0 1px 0 var(--linea); }
+  .tarjeta h3 { font:700 22px/1.25 var(--texto); margin-bottom:8px; }
+  .tarjeta p { font-size:18px; line-height:1.45; color:#3a4b5c; }
+  .contador { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .contador .tarjeta b { display:block; font-family:var(--display); font-weight:800; font-size:48px; letter-spacing:-.03em; line-height:1; }
+  .contador .tarjeta span { font-size:16px; color:var(--gris); }
+  input[type=range] { width:100%; accent-color:var(--motor); height:28px; }
+  .tabla { width:100%; border-collapse:collapse; font-size:17px; }
+  .tabla td { padding:7px 4px; border-bottom:1px solid var(--linea); } .tabla td.n { text-align:right; font-weight:600; white-space:nowrap; }
+  .tabla th { font-size:14px; text-align:left; color:var(--gris); font-weight:600; padding:4px; letter-spacing:.04em; text-transform:uppercase; }
+  .barra { display:grid; grid-template-columns:280px 1fr; align-items:center; gap:24px; margin:16px 0; }
+  .barra .b { height:74px; border-radius:10px; display:flex; align-items:center; justify-content:flex-end; padding-right:20px; color:#fff; font:800 40px var(--display); letter-spacing:-.02em; transition:width 1s cubic-bezier(.2,.8,.2,1); }
+  .barra span { font-size:22px; font-weight:600; line-height:1.3; }
+  #nav { position:absolute; right:40px; bottom:26px; display:flex; gap:8px; align-items:center; font-size:15px; color:var(--gris); z-index:5; }
+  #nav button { width:44px; height:44px; border-radius:50%; border:1.5px solid var(--linea); background:var(--blanco); font-size:20px; cursor:pointer; color:var(--asfalto); }
+  #progreso { position:absolute; left:0; top:0; height:5px; background:var(--motor); transition:width .35s ease; z-index:5; }
+  svg text { font-family:var(--texto); }
+  @media (prefers-reduced-motion: reduce) { .lamina, .barra .b, #progreso { transition:none; } }
+</style>
+</head>
+<body>
+<div id="escenario">
+  <div id="progreso"></div>
+
+  <!-- 1 -->
+  <section class="lamina" data-n="1">
+    <div style="display:grid;grid-template-columns:1fr 640px;gap:40px;height:100%">
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:30px">
+        <div class="acto">Motor de reparto · Ecobici CDMX</div>
+        <h1>Dónde amanecen las bicis decide cuántos viajes se pierden</h1>
+        <p class="lead">Un motor que decide <b>cuántas bicis</b> debe tener cada estación a las 6 de la mañana, con datos públicos de <b><span data-v="viajesM"></span> millones de viajes</b>.</p>
+        <p class="etq">Prototipo · Chilangotón 2026 · día hábil de 06:00 a 19:00</p>
+      </div>
+      <div class="marco" style="height:760px;align-self:center"><canvas class="lienzo" id="mapaPortada"></canvas></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="lamina" data-n="2">
+    <div class="acto">El problema</div>
+    <h2>Cada día hábil se pierden ~<span data-v="parejoR"></span> viajes: no hay bici, o no hay dónde dejarla</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:36px;margin-top:70px">
+      <div class="tarjeta" style="padding:34px">
+        <div class="cifra" data-v="retiros"></div>
+        <p class="etq" style="margin-top:14px">bicis que se toman en un día hábil típico entre 06:00 y 19:00</p>
+      </div>
+      <div class="tarjeta" style="padding:34px">
+        <div class="cifra sale">Vacía</div>
+        <p class="etq" style="margin-top:14px">Llegas a tomar una bici y la estación no tiene ninguna.</p>
+      </div>
+      <div class="tarjeta" style="padding:34px">
+        <div class="cifra llega">Llena</div>
+        <p class="etq" style="margin-top:14px">Llegas a devolverla y no hay muelle libre: buscas otra estación.</p>
+      </div>
+    </div>
+    <p class="lead" style="max-width:1150px;margin-top:56px">Si cada estación amanece igual de llena (el mismo porcentaje en todas), el modelo estima <b>~<span data-v="parejo"></span> viajes perdidos al día</b>. No es mala suerte: es dónde están las bicis.</p>
+    <p class="fuente">Fuente: viajes públicos de Ecobici, <span data-v="periodo"></span>. Viajes perdidos: estimación del modelo; los datos no los registran.</p>
+  </section>
+
+  <!-- 3 -->
+  <section class="lamina" data-n="3">
+    <div class="acto">El problema</div>
+    <h2>En la mañana la ciudad corre hacia Reforma y Polanco; en la tarde, de regreso</h2>
+    <div class="dos">
+      <div class="col">
+        <div class="botones"><button class="btn on" id="bMan">Mañana · 06:00–09:51</button><button class="btn" id="bTar">Tarde · 17:00–19:00</button></div>
+        <div class="leyenda"><span><i class="punto" style="background:var(--sale)"></i>salen más bicis de las que llegan</span><span><i class="punto" style="background:var(--llega)"></i>llegan más de las que salen</span></div>
+        <div class="tarjeta"><h3 id="flujoTit"></h3><p id="flujoTxt"></p></div>
+        <p class="lead" style="font-size:21px">Repartir parejo ignora esta marea: deja vacías las estaciones de donde sale la gente y llenas las de destino.</p>
+      </div>
+      <div class="marco"><canvas class="lienzo" id="mapaFlujo"></canvas></div>
+    </div>
+    <p class="fuente">Tamaño del punto = diferencia entre bicis que salen y que llegan en esa franja (promedio de <span data-v="dias"></span> días hábiles).</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="lamina" data-n="4">
+    <div class="acto">Cómo funciona · paso 1</div>
+    <h2>El motor calcula cuántas bicis le convienen a cada estación</h2>
+    <div class="dos" style="grid-template-columns:520px 1fr">
+      <div class="col" style="gap:16px">
+        <p class="lead" style="font-size:21px">Simula el día de cada estación con sus retiros y devoluciones reales y cuenta los viajes que perdería según con cuántas bicis amanezca.</p>
+        <div class="tarjeta" style="padding:16px 22px"><h3 style="font-size:20px;margin:0"><span class="sale">Pocas bicis</span> → gente sin bici<br><span class="llega">Demasiadas</span> → gente sin muelle</h3></div>
+        <div class="botones" id="tabsCurva"></div>
+        <div class="tarjeta" id="curvaTxt" style="background:#fff8ec"></div>
+      </div>
+      <div class="marco"><svg id="curvaSvg" class="lienzo" viewBox="0 0 860 620"></svg></div>
+    </div>
+    <p class="fuente">Cálculo: cadena de Markov de tiempo continuo por estación, bloques de <span data-v="paso"></span> min, demanda de <span data-v="dias"></span> días hábiles agrupados en <span data-v="nesc"></span> tipos de día.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="lamina" data-n="5">
+    <div class="acto">Cómo funciona · paso 2</div>
+    <h2>Luego reparte la flota bici por bici, a donde rescata más viajes</h2>
+    <div class="dos">
+      <div class="col">
+        <div class="contador">
+          <div class="tarjeta"><b id="cN">0</b><span>bicis repartidas</span></div>
+          <div class="tarjeta"><b id="cP" class="sale">0</b><span>viajes perdidos al día</span></div>
+          <div class="tarjeta" style="grid-column:span 2"><b id="cM" class="motor" style="font-size:40px">0</b><span id="cMtxt">viajes que rescata la siguiente bici</span></div>
+        </div>
+        <div class="tarjeta" style="padding:16px 22px"><p style="font-size:16px;color:var(--gris)">La última bici fue a</p><p id="cUlt" style="font-size:20px;font-weight:700;color:var(--asfalto);min-height:30px"></p></div>
+        <div class="botones"><button class="btn on" id="bPlay">▶ Reproducir</button><button class="btn" id="bSat">Seguir hasta saturar</button></div>
+        <input type="range" id="rN" min="0" step="1" aria-label="Bicis repartidas">
+        <div class="leyenda"><span>vacía</span><i class="degradado"></i><span>llena</span><span style="margin-left:10px"><i class="punto" style="background:transparent;border:2.5px solid var(--motor)"></i>acaba de recibir bici</span></div>
+      </div>
+      <div class="marco"><canvas class="lienzo" id="mapaLlenado"></canvas></div>
+    </div>
+    <p class="fuente">Cada bici rescata un poco menos que la anterior (curvas convexas), así que repartir así da el óptimo exacto para la flota disponible.</p>
+  </section>
+
+  <!-- 6 -->
+  <section class="lamina" data-n="6">
+    <div class="acto">Resultado</div>
+    <h2>Con la misma flota, <span class="motor"><span data-v="pct"></span>% menos</span> viajes perdidos</h2>
+    <div style="margin-top:70px;max-width:1300px">
+      <div class="barra"><span>Repartir parejo<br><small style="color:var(--gris);font-weight:500">mismo % en todas</small></span><div class="b" id="barP" style="background:var(--suave);width:0"></div></div>
+      <div class="barra"><span>Reparto del motor<br><small style="color:var(--gris);font-weight:500">misma flota</small></span><div class="b" id="barM" style="background:var(--motor);width:0"></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:50px;max-width:1300px">
+      <div class="tarjeta"><h3>−<span data-v="ahorro"></span> viajes perdidos al día</h3><p>Sin comprar bicis: solo cambia dónde amanecen las <span data-v="flota"></span>.</p></div>
+      <div class="tarjeta"><h3>Lo confirma una simulación</h3><p>Re-jugando <span data-v="dias"></span> días reales en toda la red: de <span data-v="simP"></span> a <span data-v="simM"></span> viajes perdidos.</p></div>
+      <div class="tarjeta"><h3>+<span data-v="servidos"></span> viajes servidos</h3><p>En la simulación, más gente encuentra bici o muelle cada día.</p></div>
+    </div>
+    <p class="fuente">Viajes perdidos estimados por el modelo. La simulación da niveles más altos porque conecta estaciones entre sí; lo comparable es la mejora.</p>
+  </section>
+
+  <!-- 7 -->
+  <section class="lamina" data-n="7">
+    <div class="acto">Resultado</div>
+    <h2>Así deben amanecer: Buenavista llena, Reforma con espacio</h2>
+    <div class="dos" style="grid-template-columns:620px 1fr">
+      <div class="col" style="gap:16px">
+        <p class="lead" style="font-size:21px"><b><span data-v="nLlenar"></span> estaciones</b> amanecen al 70% o más con <b><span data-v="bLlenar"></span> bicis</b> (<span data-v="pLlenar"></span>% de la flota). <b><span data-v="nVacias"></span></b> amanecen vacías para recibir a quien llega.</p>
+        <table class="tabla"><tr><th>Llenar</th><th style="text-align:right">Parejo</th><th style="text-align:right">Motor</th></tr><tbody id="tLlenar"></tbody></table>
+        <table class="tabla"><tr><th>Dejar con espacio</th><th style="text-align:right">Parejo</th><th style="text-align:right">Motor</th></tr><tbody id="tVaciar"></tbody></table>
+        <div class="leyenda"><span>mapa:</span><span>vacía</span><i class="degradado"></i><span>llena</span><span>· tamaño = bicis</span></div>
+      </div>
+      <div class="marco"><canvas class="lienzo" id="mapaFinal"></canvas></div>
+    </div>
+    <p class="fuente">Reparto de <span data-v="flota"></span> bicis a las 06:00 (flota supuesta). Lista completa de las <span data-v="nest"></span> estaciones en el PDF del reparto.</p>
+  </section>
+
+  <!-- 8 -->
+  <section class="lamina" data-n="8">
+    <div class="acto">Durante el día</div>
+    <h2>Aun así, la pérdida se concentra en dos picos: ahí deben ir los camiones</h2>
+    <div class="dos" style="grid-template-columns:1fr 420px">
+      <div class="marco"><svg id="diaSvg" class="lienzo" viewBox="0 0 1000 600"></svg></div>
+      <div class="col">
+        <div class="tarjeta"><div class="cifra motor" style="font-size:80px"><span data-v="picoPct"></span>%</div><p class="etq">de la pérdida del día cae en 4 horas y media: 07:39–09:51 y 17:00–19:00.</p></div>
+        <div class="tarjeta"><h3>Mañana</h3><p>Camiones de Reforma y Polanco hacia Buenavista.</p></div>
+        <div class="tarjeta"><h3>Antes de las 17:00</h3><p>Segundo acomodo: el reparto de la noche está pensado para la mañana.</p></div>
+      </div>
+    </div>
+    <p class="fuente">Viajes perdidos por bloque de <span data-v="paso"></span> min con el reparto del motor (estimación del modelo).</p>
+  </section>
+
+  <!-- 9 -->
+  <section class="lamina" data-n="9">
+    <div class="acto">Tamaño de flota</div>
+    <h2>Más bicis ayudan, pero después de ~<span data-v="nsatR"></span> lo que falta son muelles</h2>
+    <div class="dos" style="grid-template-columns:1fr 420px">
+      <div class="marco"><svg id="flotaSvg" class="lienzo" viewBox="0 0 1000 600"></svg></div>
+      <div class="col">
+        <div class="tarjeta"><div class="cifra motor" style="font-size:80px" data-v="marg"></div><p class="etq">viajes al día que rescata cada bici extra con la flota de hoy.</p></div>
+        <div class="tarjeta"><h3>El techo no son las bicis</h3><p>Aun con bicis de sobra se perderían ~<span data-v="pfSat"></span> viajes: hay estaciones que se llenan porque no tienen muelles suficientes.</p></div>
+      </div>
+    </div>
+    <p class="fuente">Viajes perdidos al día según cuántas bicis se reparten de forma óptima a las 06:00 (estimación del modelo).</p>
+  </section>
+
+  <!-- 10 -->
+  <section class="lamina" data-n="10">
+    <div class="acto">Qué sigue</div>
+    <h2>Siguiente paso: medir en la calle antes de invertir</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:56px">
+      <div class="tarjeta" style="padding:30px"><div class="cifra motor" style="font-size:56px">1</div><h3 style="margin-top:12px">Guardar el estado en vivo</h3><p>El feed público de Ecobici, cada 5 minutos durante 2 a 4 semanas. Así se mide cuánto tiempo pasa cada estación vacía o llena y se compara con lo que predice el modelo.</p></div>
+      <div class="tarjeta" style="padding:30px"><div class="cifra motor" style="font-size:56px">2</div><h3 style="margin-top:12px">Piloto por zonas</h3><p>Aplicar el reparto en unas colonias y no en otras parecidas. Comparar minutos vacía o llena y viajes servidos.</p></div>
+      <div class="tarjeta" style="padding:30px"><div class="cifra motor" style="font-size:56px">3</div><h3 style="margin-top:12px">Rutas de camiones</h3><p>Convertir las metas por bloque en rutas reales: cuántos camiones, qué orden y en qué horario.</p></div>
+    </div>
+    <div class="tarjeta" style="margin-top:34px;background:transparent;box-shadow:none;border:2px dashed var(--linea)">
+      <h3>Lo que el modelo todavía no sabe</h3>
+      <p>Cuando una estación está vacía nadie registra a quien no encontró bici (la demanda real es mayor). Parte de esa gente camina a otra estación (la pérdida real es menor). La flota de <span data-v="flota"></span> bicis es un supuesto.</p>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="lamina" data-n="11">
+    <div class="acto">Método y fuentes</div>
+    <h2>Cómo se hizo</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px">
+      <div class="tarjeta"><h3>Datos</h3><p>Viajes públicos de Ecobici, <span data-v="periodo"></span>: <span data-v="dias"></span> días hábiles sin feriados (<span data-v="feriados"></span>), <span data-v="viajes"></span> viajes entre 06:00 y 19:00. Estaciones y muelles útiles del feed público GBFS (2026-10-25).</p></div>
+      <div class="tarjeta"><h3>Demanda</h3><p>Retiros y devoluciones por estación en bloques de <span data-v="paso"></span> min. Proceso de Poisson con tasa aleatoria por día: <span data-v="nesc"></span> tipos de día reales (septiembre alto, lunes bajo, tardes bajas…).</p></div>
+      <div class="tarjeta"><h3>Motor</h3><p>Cadena de Markov de tiempo continuo por estación, resuelta exacta → curva de viajes perdidos según bicis al amanecer. Reparto bici por bici al mayor valor (óptimo porque las curvas son convexas).</p></div>
+      <div class="tarjeta"><h3>Validación</h3><p>Simulación de toda la red re-jugando días reales con viajes reales (origen, destino y duración), 30 réplicas. Comparación contra Poisson puro: mismo plan (difieren <span data-v="pvm"></span> bicis).</p></div>
+    </div>
+    <p class="fuente">Todo el código y los datos se pueden volver a correr: barrido.py (≈90 s) y presentacion.py.</p>
+  </section>
+
+  <div id="nav"><span id="numLam"></span><button id="ant" aria-label="Anterior">‹</button><button id="sig" aria-label="Siguiente">›</button></div>
+</div>
+
+<script>
+const D = /*__DATOS__*/null;
+const fmt = n => Math.round(n).toLocaleString('es-MX');
+const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EST = D.est.map(([lat, lon, cap, m, p, nm, nt]) => ({ lat, lon, cap, m, p, nm, nt }));
+const C = { sale:'#D1495B', llega:'#2F7F9E', motor:'#E39B2D', asfalto:'#16263A', gris:'#6B7A86', suave:'#A9B2B8', linea:'#DDE2E5' };
+
+// ---------------- valores en texto
+const V = {
+  viajesM:(D.viajes / 1e6).toFixed(1), viajes:fmt(D.viajes), parejo:fmt(D.tot.parejo), parejoR:fmt(Math.round(D.tot.parejo / 100) * 100),
+  retiros:fmt(D.tot.retiros), dias:D.dias, paso:D.paso, nesc:D.n_esc, flota:fmt(D.flota), nest:D.n_est,
+  periodo:`${D.desde} a ${D.hasta}`, feriados:D.feriados.join(', '),
+  pct:Math.round(100 * (1 - D.tot.motor / D.tot.parejo)), ahorro:fmt(D.tot.parejo - D.tot.motor),
+  simP:fmt(D.tot.sim_parejo), simM:fmt(D.tot.sim_motor), servidos:fmt(D.tot.serv_motor - D.tot.serv_parejo),
+  nLlenar:D.n_llenar, bLlenar:fmt(D.bicis_llenar), pLlenar:Math.round(100 * D.bicis_llenar / D.flota), nVacias:D.n_vacias,
+  picoPct:D.tot.pico_pct, nsatR:fmt(Math.round(D.nsat / 100) * 100), marg:D.marg_hoy.toFixed(2), pfSat:fmt(D.pf[D.pf.length - 1]), pvm:D.tot.poisson_vs_mezcla,
+};
+document.querySelectorAll('[data-v]').forEach(el => el.textContent = V[el.dataset.v]);
+
+// ---------------- mapa en canvas (sin teselas)
+const lat0 = EST.reduce((s, e) => s + e.lat, 0) / EST.length, kx = Math.cos(lat0 * Math.PI / 180);
+const B = { x0:Math.min(...EST.map(e => e.lon * kx)), x1:Math.max(...EST.map(e => e.lon * kx)), y0:Math.min(...EST.map(e => e.lat)), y1:Math.max(...EST.map(e => e.lat)) };
+const ZONAS = [['BUENAVISTA', 19.4492, -99.1525], ['REFORMA', 19.4258, -99.1702], ['POLANCO', 19.4345, -99.1965], ['CENTRO', 19.4330, -99.1345],
+  ['ROMA · CONDESA', 19.4150, -99.1665], ['NARVARTE', 19.3950, -99.1480], ['DEL VALLE', 19.3800, -99.1720], ['COYOACÁN', 19.3470, -99.1625]];
+function lienzo(id) {
+  const cv = document.getElementById(id), r = cv.getBoundingClientRect(), esc = escala || 1;
+  const w = r.width / esc, h = r.height / esc, dpr = Math.max(2, window.devicePixelRatio || 1);
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const pad = 34, sx = (w - 2 * pad) / (B.x1 - B.x0), sy = (h - 2 * pad) / (B.y1 - B.y0), s = Math.min(sx, sy);
+  const ox = (w - (B.x1 - B.x0) * s) / 2, oy = (h - (B.y1 - B.y0) * s) / 2;
+  return { ctx, w, h, P:(lat, lon) => [ox + (lon * kx - B.x0) * s, h - oy - (lat - B.y0) * s] };
+}
+function dibujar(m, estilo, zonas = true) {
+  const { ctx, w, h, P } = m;
+  ctx.clearRect(0, 0, w, h);
+  const items = EST.map((e, i) => ({ i, ...estilo(e, i) })).sort((a, b) => b.r - a.r);
+  for (const it of items) {
+    const [x, y] = P(EST[it.i].lat, EST[it.i].lon);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(it.r, .8), 0, 2 * Math.PI);
+    ctx.fillStyle = it.c; ctx.globalAlpha = it.a ?? .82; ctx.fill(); ctx.globalAlpha = 1;
+    if (it.anillo) { ctx.lineWidth = 2.5; ctx.strokeStyle = C.motor; ctx.beginPath(); ctx.arc(x, y, it.r + 4, 0, 2 * Math.PI); ctx.stroke(); }
+  }
+  if (zonas) {
+    ctx.font = '700 12.5px Inter, sans-serif'; ctx.textAlign = 'center';
+    for (const [t, la, lo] of ZONAS) {
+      const [x, y] = P(la, lo);
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(t, x, y);
+      ctx.fillStyle = 'rgba(22,38,58,.62)'; ctx.fillText(t, x, y);
+    }
+  }
+}
+const mezcla = f => { // azul (vacía) → rojo (llena)
+  const a = [47, 127, 158], b = [209, 73, 91], m = [185, 166, 160];
+  const t = Math.max(0, Math.min(1, f)), [u, v, k] = t < .5 ? [a, m, t * 2] : [m, b, (t - .5) * 2];
+  return `rgb(${u.map((x, j) => Math.round(x + (v[j] - x) * k)).join(',')})`;
+};
+const estiloReparto = x => (e, i) => x[i] === 0 ? { r:1.6, c:C.suave, a:.6 } : { r:1.8 + Math.sqrt(x[i]) * 1.25, c:mezcla(x[i] / e.cap) };
+
+// ---------------- láminas con mapa
+let mapas = {};
+function prepararMapas() {
+  mapas = { portada:lienzo('mapaPortada'), flujo:lienzo('mapaFlujo'), llenado:lienzo('mapaLlenado'), final:lienzo('mapaFinal') };
+  const xm = EST.map(e => e.m);
+  dibujar(mapas.portada, estiloReparto(xm));
+  dibujar(mapas.final, estiloReparto(xm));
+  pintarFlujo(); pintarLlenado(+rN.value);
+}
+
+let franja = 'nm';
+function pintarFlujo() {
+  dibujar(mapas.flujo, e => { const v = e[franja]; return Math.abs(v) < .5 ? { r:1.4, c:C.suave, a:.5 } : { r:1.4 + Math.sqrt(Math.abs(v)) * 1.25, c:v > 0 ? C.sale : C.llega, a:.75 }; });
+  const bv = D.buenavista;
+  document.getElementById('flujoTit').textContent = franja === 'nm' ? `${bv.nombre}: salen ${fmt(bv.man)} bicis más de las que llegan` : `${bv.nombre}: llegan ${fmt(-bv.tar)} bicis más de las que salen`;
+  document.getElementById('flujoTxt').textContent = franja === 'nm'
+    ? 'Es la estación junto a Buenavista. En la mañana se vacía; las de Reforma y Polanco se llenan con quienes llegan a trabajar.'
+    : 'En la tarde el flujo se invierte: Reforma y Polanco se vacían y Buenavista se llena de regreso.';
+}
+document.getElementById('bMan').onclick = () => { franja = 'nm'; bMan.classList.add('on'); bTar.classList.remove('on'); pintarFlujo(); };
+document.getElementById('bTar').onclick = () => { franja = 'nt'; bTar.classList.add('on'); bMan.classList.remove('on'); pintarFlujo(); };
+
+// ---------------- llenado bici por bici (la animación)
+const rN = document.getElementById('rN'); rN.max = D.nsat; rN.value = 0;
+let cacheN = 0, cacheX = new Array(EST.length).fill(0);
+function asignar(N) {
+  if (N < cacheN) { cacheN = 0; cacheX = new Array(EST.length).fill(0); }
+  for (let j = cacheN; j < N; j++) cacheX[D.orden[j]]++;
+  cacheN = N; return cacheX;
+}
+function pintarLlenado(N) {
+  const x = asignar(N), recientes = new Set(D.orden.slice(Math.max(0, N - 25), N));
+  dibujar(mapas.llenado, (e, i) => ({ ...estiloReparto(x)(e, i), anillo:recientes.has(i) }));
+  document.getElementById('cN').textContent = fmt(N);
+  document.getElementById('cP').textContent = fmt(D.pf[N]);
+  const sig = N < D.nsat ? D.pf[N] - D.pf[N + 1] : 0;
+  document.getElementById('cM').textContent = sig.toFixed(2);
+  document.getElementById('cMtxt').textContent = N >= D.nsat ? 'ya ninguna bici extra rescata viajes: faltan muelles' : N === D.flota ? `viajes que rescataría la bici ${fmt(N + 1)} (flota de hoy: ${fmt(D.flota)})` : 'viajes que rescata la siguiente bici';
+  document.getElementById('cUlt').textContent = N > 0 ? (D.nombres ? D.nombres[D.orden[N - 1]] : '') : '—';
+}
+let anim = null;
+function animarHasta(meta, ms) {
+  cancelAnimationFrame(anim);
+  const ini = +rN.value, t0 = performance.now();
+  if (reducir) { rN.value = meta; pintarLlenado(meta); return; }
+  const paso = t => {
+    const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 2);
+    const N = Math.round(ini + (meta - ini) * e); rN.value = N; pintarLlenado(N);
+    if (k < 1) anim = requestAnimationFrame(paso);
+  };
+  anim = requestAnimationFrame(paso);
+}
+document.getElementById('bPlay').onclick = () => { rN.value = 0; pintarLlenado(0); animarHasta(D.flota, 6000); };
+document.getElementById('bSat').onclick = () => animarHasta(D.nsat, 4000);
+rN.oninput = () => { cancelAnimationFrame(anim); pintarLlenado(+rN.value); };
+
+// ---------------- curva de una estación
+const tabs = document.getElementById('tabsCurva');
+D.ejemplos.forEach((ej, k) => { const b = document.createElement('button'); b.className = 'btn' + (k ? '' : ' on'); b.textContent = ej.tipo; b.style.fontSize = '16px'; b.style.padding = '9px 16px'; b.onclick = () => { tabs.querySelectorAll('.btn').forEach(x => x.classList.remove('on')); b.classList.add('on'); pintarCurva(k); }; tabs.appendChild(b); });
+function pintarCurva(k) {
+  const ej = D.ejemplos[k], f = ej.curva, W = 860, H = 620, L = 90, R = 30, T = 60, Bm = 80;
+  const ymax = Math.max(...f) * 1.08, X = i => L + i / (f.length - 1) * (W - L - R), Y = v => H - Bm - v / ymax * (H - T - Bm);
+  const xmin = f.indexOf(Math.min(...f));
+  let s = `<text x="${L}" y="34" font-size="22" font-weight="700" fill="${C.asfalto}">${ej.nombre}</text><text x="${W - R}" y="34" font-size="17" fill="${C.gris}" text-anchor="end">${ej.cap} muelles</text>`;
+  for (let g = 0; g <= 4; g++) { const v = ymax * g / 4; s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.linea}"/><text x="${L - 12}" y="${Y(v) + 5}" font-size="15" fill="${C.gris}" text-anchor="end">${Math.round(v)}</text>`; }
+  s += `<text x="${L}" y="${H - 22}" font-size="16" fill="${C.gris}">0 bicis</text><text x="${W - R}" y="${H - 22}" font-size="16" fill="${C.gris}" text-anchor="end">${f.length - 1} bicis (llena)</text>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 22}" font-size="16" fill="${C.gris}" text-anchor="middle">bicis con las que amanece →</text>`;
+  s += `<text transform="translate(26 ${(T + H - Bm) / 2}) rotate(-90)" font-size="16" fill="${C.gris}" text-anchor="middle">viajes perdidos en el día</text>`;
+  const area = f.map((v, i) => `${X(i)},${Y(v)}`).join(' ');
+  s += `<polygon points="${X(0)},${Y(0)} ${area} ${X(f.length - 1)},${Y(0)}" fill="rgba(22,38,58,.05)"/>`;
+  s += `<polyline points="${area}" fill="none" stroke="${C.asfalto}" stroke-width="4" stroke-linejoin="round"/>`;
+  const marca = (i, color, txt, dy) => `<line x1="${X(i)}" x2="${X(i)}" y1="${T}" y2="${H - Bm}" stroke="${color}" stroke-width="2.5" stroke-dasharray="${color === C.suave ? '6 6' : '0'}"/><circle cx="${X(i)}" cy="${Y(f[i])}" r="9" fill="${color}" stroke="#fff" stroke-width="3"/>` +
+    `<text x="${X(i) + (X(i) > W - 220 ? -12 : 12)}" y="${T + dy}" font-size="18" font-weight="700" fill="${color}" text-anchor="${X(i) > W - 220 ? 'end' : 'start'}">${txt}</text>`;
+  s += marca(ej.parejo, C.suave, `parejo: ${ej.parejo}`, 18) + marca(ej.motor, C.motor, `motor: ${ej.motor}`, 44);
+  document.getElementById('curvaSvg').innerHTML = s;
+  const rescate = f[ej.parejo] - f[ej.motor];
+  const tipo = { 'De salida':'Aquí la gente toma bici en la mañana.', 'Mixta':'Salen y llegan bicis en cantidades parecidas.', 'De llegada':'Aquí la gente deja la bici en la mañana.' }[ej.tipo] || '';
+  document.getElementById('curvaTxt').innerHTML = `<p style="font-size:19px;color:${C.asfalto}"><b>${tipo}</b> Con <b>${ej.parejo}</b> bicis (parejo) pierde <b>${f[ej.parejo].toFixed(1)}</b> viajes al día. Con <b>${ej.motor}</b> (motor) pierde <b>${f[ej.motor].toFixed(1)}</b>.` +
+    (Math.abs(rescate) < .05 ? ' Aquí el reparto parejo ya era bueno.' : rescate > 0 ? ` Rescata <b>${rescate.toFixed(1)}</b> viajes.` : ` Pierde ${(-rescate).toFixed(1)} más, porque esas bicis rescatan más en otra estación.`) +
+    (xmin !== ej.motor ? ` <span style="color:${C.gris}">Su punto más bajo es ${xmin}, pero la flota no alcanza para darle eso a todas.</span>` : '') + '</p>';
+}
+
+// ---------------- gráficas del día y de flota
+function pintarDia() {
+  const W = 1000, H = 600, L = 80, R = 30, T = 40, Bm = 70, n = D.bloques.length;
+  const ymax = Math.max(...D.perd_parejo) * 1.1, X = i => L + i / (n - 1) * (W - L - R), Y = v => H - Bm - v / ymax * (H - T - Bm);
+  let s = '';
+  for (const [a, b] of [[3, 6], [20, n - 1]]) s += `<rect x="${X(a) - 12}" y="${T}" width="${X(b) - X(a) + 24}" height="${H - T - Bm}" fill="rgba(227,155,45,.13)" rx="8"/>`;
+  for (let g = 0; g <= 4; g++) { const v = ymax * g / 4; s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.linea}"/><text x="${L - 12}" y="${Y(v) + 5}" font-size="15" fill="${C.gris}" text-anchor="end">${Math.round(v)}</text>`; }
+  D.bloques.forEach((b, i) => { if (i % 3 === 0) s += `<text x="${X(i)}" y="${H - Bm + 30}" font-size="15" fill="${C.gris}" text-anchor="middle">${b}</text>`; });
+  const linea = (a, c, w, dash = '') => `<polyline points="${a.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" stroke-dasharray="${dash}" stroke-linejoin="round"/>`;
+  s += linea(D.perd_parejo, C.suave, 4, '10 8') + linea(D.perd_motor, C.motor, 5);
+  s += `<text x="${X(2) - 10}" y="${Y(D.perd_parejo[2])}" font-size="17" fill="${C.gris}" font-weight="600" text-anchor="end">parejo</text>`;
+  s += `<text x="${X(9)}" y="${Y(D.perd_motor[9]) - 18}" font-size="17" fill="${C.motor}" font-weight="700">motor</text>`;
+  s += `<text x="${(X(3) + X(6)) / 2}" y="${T + 26}" font-size="16" font-weight="700" fill="${C.asfalto}" text-anchor="middle">pico de la mañana</text>`;
+  s += `<text x="${(X(20) + X(n - 1)) / 2}" y="${T + 26}" font-size="16" font-weight="700" fill="${C.asfalto}" text-anchor="middle">pico de la tarde</text>`;
+  s += `<text transform="translate(22 ${(T + H - Bm) / 2}) rotate(-90)" font-size="15" fill="${C.gris}" text-anchor="middle">viajes perdidos por bloque</text>`;
+  document.getElementById('diaSvg').innerHTML = s;
+}
+function pintarFlota() {
+  const W = 1000, H = 600, L = 90, R = 40, T = 40, Bm = 70, pf = D.pf, n = pf.length;
+  const ymax = pf[0] * 1.05, X = i => L + i / (n - 1) * (W - L - R), Y = v => H - Bm - v / ymax * (H - T - Bm);
+  let s = '';
+  for (let g = 0; g <= 4; g++) { const v = ymax * g / 4; s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.linea}"/><text x="${L - 12}" y="${Y(v) + 5}" font-size="15" fill="${C.gris}" text-anchor="end">${fmt(v)}</text>`; }
+  for (const v of [0, 2000, 4000, 6000, 8000]) s += `<text x="${X(v)}" y="${H - Bm + 30}" font-size="15" fill="${C.gris}" text-anchor="middle">${fmt(v)}</text>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 14}" font-size="15" fill="${C.gris}" text-anchor="middle">bicis repartidas a las 06:00</text>`;
+  const pts = []; for (let i = 0; i < n; i += 20) pts.push(`${X(i)},${Y(pf[i])}`); pts.push(`${X(n - 1)},${Y(pf[n - 1])}`);
+  s += `<polyline points="${pts.join(' ')}" fill="none" stroke="${C.asfalto}" stroke-width="5" stroke-linejoin="round"/>`;
+  const f = D.flota;
+  s += `<line x1="${X(f)}" x2="${X(f)}" y1="${T}" y2="${H - Bm}" stroke="${C.motor}" stroke-width="2.5"/><circle cx="${X(f)}" cy="${Y(pf[f])}" r="10" fill="${C.motor}" stroke="#fff" stroke-width="3"/>`;
+  s += `<text x="${X(f) + 16}" y="${Y(pf[f]) - 16}" font-size="18" font-weight="700" fill="${C.motor}">hoy: ${fmt(f)} bicis → ${fmt(pf[f])} perdidos</text>`;
+  s += `<line x1="${X(n - 1)}" x2="${X(n - 1)}" y1="${T}" y2="${H - Bm}" stroke="${C.gris}" stroke-width="2" stroke-dasharray="6 6"/><text x="${X(n - 1) - 10}" y="${T + 24}" font-size="17" fill="${C.gris}" text-anchor="end">saturación: ${fmt(n - 1)}</text>`;
+  document.getElementById('flotaSvg').innerHTML = s;
+}
+function tablas() {
+  const fila = t => `<tr><td>${t.n}</td><td class="n" style="color:${C.gris}">${t.p}</td><td class="n">${t.m} <span style="color:${C.gris};font-weight:400">/ ${t.c}</span></td></tr>`;
+  document.getElementById('tLlenar').innerHTML = D.top_llenar.slice(0, 5).map(fila).join('');
+  document.getElementById('tVaciar').innerHTML = D.top_vaciar.slice(0, 5).map(fila).join('');
+}
+
+// ---------------- navegación y escala
+const lams = [...document.querySelectorAll('.lamina')];
+let actual = 0, escala = 1;
+function escalar() {
+  const esc = document.getElementById('escenario');
+  escala = Math.min(innerWidth / 1600, innerHeight / 900);
+  esc.style.transform = `translate(${(innerWidth - 1600 * escala) / 2}px, ${(innerHeight - 900 * escala) / 2}px) scale(${escala})`;
+}
+function ir(n) {
+  actual = Math.max(0, Math.min(lams.length - 1, n));
+  lams.forEach((l, i) => l.classList.toggle('activa', i === actual));
+  document.getElementById('numLam').textContent = `${actual + 1} / ${lams.length}`;
+  document.getElementById('progreso').style.width = `${100 * (actual + 1) / lams.length}%`;
+  history.replaceState(null, '', '#' + (actual + 1));
+  const n1 = actual + 1;
+  if (n1 === 5 && +rN.value === 0) { if (reducir) { rN.value = D.flota; pintarLlenado(D.flota); } else setTimeout(() => animarHasta(D.flota, 6000), 400); }
+  if (n1 === 6) { const mx = D.tot.parejo; requestAnimationFrame(() => { document.getElementById('barP').style.width = `${100 * D.tot.parejo / mx}%`; document.getElementById('barM').style.width = `${100 * D.tot.motor / mx}%`; }); }
+  else { document.getElementById('barP').style.width = 0; document.getElementById('barM').style.width = 0; }
+}
+document.getElementById('barP').textContent = fmt(D.tot.parejo);
+document.getElementById('barM').textContent = fmt(D.tot.motor);
+document.getElementById('sig').onclick = () => ir(actual + 1);
+document.getElementById('ant').onclick = () => ir(actual - 1);
+addEventListener('keydown', e => {
+  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); ir(actual + 1); }
+  else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); ir(actual - 1); }
+  else if (e.key === 'Home') ir(0); else if (e.key === 'End') ir(lams.length - 1);
+  else if (e.key === 'f') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+});
+addEventListener('resize', () => { escalar(); prepararMapas(); });
+escalar(); pintarCurva(0); pintarDia(); pintarFlota(); tablas();
+lams.forEach(l => l.classList.add('activa')); prepararMapas(); lams.forEach(l => l.classList.remove('activa'));
+ir((parseInt(location.hash.slice(1)) || 1) - 1);
+</script>
+</body>
+</html>
